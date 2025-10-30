@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raumbuchungssystem</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Admin-Modus Button (Zahnrad oben rechts) -->
+    <button id="admin-toggle-btn" class="admin-gear-btn" title="Admin-Modus">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+    </button>
+
+    <div class="container" id="main-container">
+        <div class="main-content">
+            <div class="calendar-section">
+                <div class="calendar-header">
+                    <button id="prev-month">&lt;</button>
+                    <h2 id="current-month"></h2>
+                    <button id="next-month">&gt;</button>
+                </div>
+
+                <div id="calendar"></div>
+
+                <div class="legende">
+                    <div class="legende-item">
+                        <span class="color-box verfuegbar"></span> Verfügbar
+                    </div>
+                    <div class="legende-item">
+                        <span class="color-box ausstehend"></span> Ausstehend
+                    </div>
+                    <div class="legende-item">
+                        <span class="color-box bestaetigt"></span> Bestätigt
+                    </div>
+                </div>
+            </div>
+
+            <div class="buchungen-verwaltung">
+                <h2>Buchungsverwaltung</h2>
+                <div id="buchungen-liste"></div>
+            </div>
+        </div>
+
+        <!-- Admin-Seitenleiste -->
+        <div id="admin-sidebar" class="admin-sidebar">
+            <div class="admin-sidebar-header">
+                <h2>Admin-Panel</h2>
+                <span class="admin-badge">Aktiv</span>
+            </div>
+
+            <div class="admin-section">
+                <h3>E-Mail Verlauf</h3>
+                <div id="email-log" class="log-container">
+                    <p class="loading">Lade Verlauf...</p>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <h3>Statistiken</h3>
+                <div id="stats-container" class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-total">0</div>
+                        <div class="stat-label">Gesamt</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-pending">0</div>
+                        <div class="stat-label">Ausstehend</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-confirmed">0</div>
+                        <div class="stat-label">Bestätigt</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="stat-rejected">0</div>
+                        <div class="stat-label">Abgelehnt</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <input type="hidden" id="raum-id" value="{% if raeume %}{{ raeume[0].id }}{% endif %}">
+        <input type="hidden" id="raum-name" value="{% if raeume %}{{ raeume[0].name }}{% endif %}">
+    </div>
+
+    <!-- Modal für PIN-Eingabe -->
+    <div id="pin-modal" class="modal">
+        <div class="modal-content pin-modal-content">
+            <span class="close" id="pin-close">&times;</span>
+            <h2>Admin-Modus aktivieren</h2>
+            <form id="pin-form">
+                <div class="form-group">
+                    <label for="admin-pin">Bitte PIN eingeben:</label>
+                    <input type="password" id="admin-pin" required maxlength="4" placeholder="****" style="text-align: center; letter-spacing: 8px;">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Bestätigen</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-pin">Abbrechen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal für Buchungsdetails -->
+    <div id="buchungsdetail-modal" class="modal">
+        <div class="modal-content detail-modal-content">
+            <span class="close" id="detail-close">&times;</span>
+            <h2>Buchungsdetails</h2>
+            <div id="detail-content">
+                <!-- Wird dynamisch gefüllt -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal für neue Buchung -->
+    <div id="buchung-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Neue Buchungsanfrage - Saal Raifeinstraße</h2>
+            <form id="buchung-form">
+                <input type="hidden" id="selected-raum-id">
+                <input type="hidden" id="selected-datum">
+
+                <div class="form-group">
+                    <label>Datum:</label>
+                    <div id="selected-datum-anzeige"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="start-zeit">Startzeit:</label>
+                    <input type="time" id="start-zeit" required value="09:00">
+                </div>
+
+                <div class="form-group">
+                    <label for="end-zeit">Endzeit:</label>
+                    <input type="time" id="end-zeit" required value="10:00">
+                </div>
+
+                <div class="form-group">
+                    <label for="benutzer-name">Ihr Name:</label>
+                    <input type="text" id="benutzer-name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="benutzer-email">Ihre E-Mail:</label>
+                    <input type="email" id="benutzer-email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="zweck">Zweck der Buchung <span class="optional">(optional)</span>:</label>
+                    <textarea id="zweck"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Buchungsanfrage senden</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-buchung">Abbrechen</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm-modal" class="modal">
+        <div class="modal-content confirm-modal-content">
+            <h2 id="confirm-title">Bestätigung</h2>
+            <p id="confirm-message"></p>
+            <div id="confirm-input-container" style="display: none;">
+                <label for="confirm-input" id="confirm-input-label"></label>
+                <textarea id="confirm-input" rows="4" placeholder="Optional: Geben Sie hier eine Nachricht ein..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" id="confirm-yes">Ja</button>
+                <button type="button" class="btn btn-secondary" id="confirm-no">Nein</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="custom-alert-modal" class="modal">
+        <div class="modal-content alert-modal-content">
+            <div id="alert-icon" class="alert-icon"></div>
+            <h2 id="alert-title">Hinweis</h2>
+            <p id="alert-message"></p>
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" id="alert-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+</body>
+</html>
