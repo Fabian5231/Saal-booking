@@ -1,4 +1,4 @@
-# Umgebungsvariablen - WICHTIG!
+# Environment Variables
 .env
 
 # Python
@@ -25,8 +25,8 @@ wheels/
 
 # Virtual Environment
 venv/
-ENV/
 env/
+ENV/
 .venv
 
 # IDE
@@ -36,18 +36,29 @@ env/
 *.swo
 *~
 
-# Datenbank
-instance/
+# Database
 *.db
 *.sqlite
 *.sqlite3
+instance/
 
 # Logs
 *.log
+logs/
 
 # OS
 .DS_Store
 Thumbs.db
 
-.claude
-nul
+# Backups
+*.backup
+*.bak
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Deployment
+*.pid

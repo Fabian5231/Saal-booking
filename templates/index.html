@@ -53,6 +53,24 @@
             </div>
 
             <div class="admin-section">
+                <h3>E-Mail Einstellungen</h3>
+                <div class="settings-container">
+                    <div class="setting-item">
+                        <label>Admin E-Mail (aus .env):</label>
+                        <input type="email" id="admin-email-display" readonly>
+                    </div>
+                    <div class="setting-item">
+                        <label>Saal-Verantwortlicher E-Mail:</label>
+                        <div class="setting-input-group">
+                            <input type="email" id="saal-email-input" placeholder="z.B. saal@example.com">
+                            <button id="save-saal-email-btn" class="btn btn-primary btn-small">Speichern</button>
+                        </div>
+                        <small>Diese E-Mail erhält ebenfalls Benachrichtigungen über neue Buchungen und Stornierungen.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
                 <h3>E-Mail Verlauf</h3>
                 <div id="email-log" class="log-container">
                     <p class="loading">Lade Verlauf...</p>
@@ -61,22 +79,26 @@
 
             <div class="admin-section">
                 <h3>Statistiken</h3>
-                <div id="stats-container" class="stats-grid">
+                <div id="stats-container" class="stats-grid-extended">
                     <div class="stat-card">
                         <div class="stat-number" id="stat-total">0</div>
                         <div class="stat-label">Gesamt</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card stat-pending">
                         <div class="stat-number" id="stat-pending">0</div>
                         <div class="stat-label">Ausstehend</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card stat-confirmed">
                         <div class="stat-number" id="stat-confirmed">0</div>
                         <div class="stat-label">Bestätigt</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card stat-rejected">
                         <div class="stat-number" id="stat-rejected">0</div>
                         <div class="stat-label">Abgelehnt</div>
+                    </div>
+                    <div class="stat-card stat-deleted">
+                        <div class="stat-number" id="stat-deleted">0</div>
+                        <div class="stat-label">Gelöscht</div>
                     </div>
                 </div>
             </div>
@@ -129,14 +151,16 @@
                     <div id="selected-datum-anzeige"></div>
                 </div>
 
-                <div class="form-group">
-                    <label for="start-zeit">Startzeit:</label>
-                    <input type="time" id="start-zeit" required value="09:00">
-                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="start-zeit">Startzeit:</label>
+                        <input type="time" id="start-zeit" required value="09:00">
+                    </div>
 
-                <div class="form-group">
-                    <label for="end-zeit">Endzeit:</label>
-                    <input type="time" id="end-zeit" required value="10:00">
+                    <div class="form-group">
+                        <label for="end-zeit">Endzeit:</label>
+                        <input type="time" id="end-zeit" required value="10:00">
+                    </div>
                 </div>
 
                 <div class="form-group">

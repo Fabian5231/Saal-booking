@@ -206,7 +206,7 @@ def send_booking_request_email(buchung):
 
         msg = Message(
             subject=f'Neue Buchungsanfrage - {buchung.benutzer_name}',
-            recipients=[os.getenv('ADMIN_EMAIL')],
+            recipients=get_notification_emails(),
             html=html_body
         )
 
@@ -637,7 +637,7 @@ def send_cancellation_notification(buchung):
 
         msg = Message(
             subject=f'Stornierung - {buchung.benutzer_name}',
-            recipients=[os.getenv('ADMIN_EMAIL')],
+            recipients=get_notification_emails(),
             html=html_body
         )
 
@@ -663,7 +663,44 @@ class Buchung(db.Model):
     benutzer_email = db.Column(db.String(120), nullable=False)
     zweck = db.Column(db.String(500))
     status = db.Column(db.String(20), default='ausstehend')  # ausstehend, bestätigt, abgelehnt
+    is_active = db.Column(db.Boolean, default=True)  # False = gelöscht/storniert
+    geloescht_am = db.Column(db.DateTime)  # Zeitpunkt der Löschung/Stornierung
     erstellt_am = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Settings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(500))
+    beschreibung = db.Column(db.String(500))
+
+# Hilfsfunktionen für Einstellungen
+def get_setting(key, default=None):
+    """Holt eine Einstellung aus der Datenbank"""
+    setting = Settings.query.filter_by(key=key).first()
+    return setting.value if setting else default
+
+def set_setting(key, value, beschreibung=None):
+    """Setzt oder aktualisiert eine Einstellung"""
+    setting = Settings.query.filter_by(key=key).first()
+    if setting:
+        setting.value = value
+        if beschreibung:
+            setting.beschreibung = beschreibung
+    else:
+        setting = Settings(key=key, value=value, beschreibung=beschreibung)
+        db.session.add(setting)
+    db.session.commit()
+
+def get_notification_emails():
+    """Gibt eine Liste von E-Mail-Adressen zurück, die Benachrichtigungen erhalten sollen"""
+    emails = [os.getenv('ADMIN_EMAIL')]
+
+    # Saal-Verantwortlichen E-Mail hinzufügen, falls gesetzt
+    saal_email = get_setting('saal_verantwortlicher_email')
+    if saal_email and saal_email.strip():
+        emails.append(saal_email.strip())
+
+    return emails
 
 # Routen
 @app.route('/')
@@ -677,7 +714,7 @@ def get_buchungen():
     monat = request.args.get('monat', datetime.now().month, type=int)
     raum_id = request.args.get('raum_id', type=int)
 
-    query = Buchung.query
+    query = Buchung.query.filter_by(is_active=True)
     if raum_id:
         query = query.filter_by(raum_id=raum_id)
 
@@ -710,10 +747,11 @@ def create_buchung():
             status='ausstehend'
         )
 
-        # Prüfe auf Überschneidungen
+        # Prüfe auf Überschneidungen (nur aktive Buchungen)
         ueberschneidungen = Buchung.query.filter(
             Buchung.raum_id == neue_buchung.raum_id,
             Buchung.status == 'bestätigt',
+            Buchung.is_active == True,
             Buchung.start_datum < neue_buchung.end_datum,
             Buchung.end_datum > neue_buchung.start_datum
         ).first()
@@ -746,11 +784,12 @@ def create_buchung():
 def bestaetigen_buchung(buchung_id):
     buchung = Buchung.query.get_or_404(buchung_id)
 
-    # Prüfe erneut auf Überschneidungen
+    # Prüfe erneut auf Überschneidungen (nur aktive Buchungen)
     ueberschneidungen = Buchung.query.filter(
         Buchung.id != buchung_id,
         Buchung.raum_id == buchung.raum_id,
         Buchung.status == 'bestätigt',
+        Buchung.is_active == True,
         Buchung.start_datum < buchung.end_datum,
         Buchung.end_datum > buchung.start_datum
     ).first()
@@ -787,7 +826,8 @@ def ablehnen_buchung(buchung_id):
 @admin_required
 def loeschen_buchung(buchung_id):
     buchung = Buchung.query.get_or_404(buchung_id)
-    db.session.delete(buchung)
+    buchung.is_active = False
+    buchung.geloescht_am = datetime.utcnow()
     db.session.commit()
 
     return jsonify({'message': 'Buchung wurde gelöscht'})
@@ -804,19 +844,34 @@ def get_raeume():
 @app.route('/api/admin/logs')
 @admin_required
 def get_admin_logs():
-    # Hole alle Buchungen sortiert nach Erstellungsdatum
+    # Hole alle Buchungen sortiert nach Erstellungsdatum (inkl. gelöschte)
     buchungen = Buchung.query.order_by(Buchung.erstellt_am.desc()).limit(50).all()
 
     logs = []
     for b in buchungen:
+        # Bestimme den Status-Text
+        if not b.is_active:
+            status = 'gelöscht'
+            status_text = 'Gelöscht'
+            if b.geloescht_am:
+                details_suffix = f' (gelöscht am {b.geloescht_am.strftime("%d.%m.%Y %H:%M")})'
+            else:
+                details_suffix = ' (gelöscht)'
+        else:
+            status = b.status
+            status_text = b.status.capitalize()
+            details_suffix = ''
+
         logs.append({
             'id': b.id,
             'timestamp': b.erstellt_am.isoformat(),
             'type': 'buchung_erstellt',
-            'status': b.status,
+            'status': status,
+            'status_text': status_text,
             'message': f'Buchungsanfrage von {b.benutzer_name}',
-            'details': f'{b.start_datum.strftime("%d.%m.%Y %H:%M")} - {b.end_datum.strftime("%H:%M")}',
-            'email': b.benutzer_email
+            'details': f'{b.start_datum.strftime("%d.%m.%Y %H:%M")} - {b.end_datum.strftime("%H:%M")}{details_suffix}',
+            'email': b.benutzer_email,
+            'is_active': b.is_active
         })
 
     return jsonify(logs)
@@ -825,15 +880,17 @@ def get_admin_logs():
 @admin_required
 def get_admin_stats():
     total = Buchung.query.count()
-    pending = Buchung.query.filter_by(status='ausstehend').count()
-    confirmed = Buchung.query.filter_by(status='bestätigt').count()
-    rejected = Buchung.query.filter_by(status='abgelehnt').count()
+    pending = Buchung.query.filter_by(status='ausstehend', is_active=True).count()
+    confirmed = Buchung.query.filter_by(status='bestätigt', is_active=True).count()
+    rejected = Buchung.query.filter_by(status='abgelehnt', is_active=True).count()
+    deleted = Buchung.query.filter_by(is_active=False).count()
 
     return jsonify({
         'total': total,
         'pending': pending,
         'confirmed': confirmed,
-        'rejected': rejected
+        'rejected': rejected,
+        'deleted': deleted
     })
 
 @app.route('/api/admin/verify-pin', methods=['POST'])
@@ -872,6 +929,37 @@ def admin_logout():
         'message': 'Erfolgreich abgemeldet'
     })
 
+@app.route('/api/admin/settings', methods=['GET'])
+@admin_required
+def get_admin_settings():
+    """Holt die Admin-Einstellungen"""
+    saal_email = get_setting('saal_verantwortlicher_email', '')
+    admin_email = os.getenv('ADMIN_EMAIL', '')
+
+    return jsonify({
+        'admin_email': admin_email,
+        'saal_verantwortlicher_email': saal_email
+    })
+
+@app.route('/api/admin/settings/saal-email', methods=['POST'])
+@admin_required
+def update_saal_email():
+    """Aktualisiert die Saal-Verantwortlichen E-Mail"""
+    data = request.json
+    email = data.get('email', '').strip()
+
+    # Validiere E-Mail-Format (einfache Validierung)
+    if email and '@' not in email:
+        return jsonify({'error': 'Ungültige E-Mail-Adresse'}), 400
+
+    set_setting('saal_verantwortlicher_email', email, 'E-Mail-Adresse des Saal-Verantwortlichen')
+
+    return jsonify({
+        'success': True,
+        'message': 'Saal-Verantwortlichen E-Mail wurde aktualisiert',
+        'email': email
+    })
+
 # E-Mail-basierte Bestätigung/Ablehnung
 @app.route('/buchung/bestaetigen/<token>')
 def confirm_buchung_email(token):
@@ -897,11 +985,12 @@ def confirm_buchung_email(token):
                                message=f'Diese Buchung wurde {status_text}.',
                                typ='warning')
 
-    # Prüfe auf Überschneidungen
+    # Prüfe auf Überschneidungen (nur aktive Buchungen)
     ueberschneidungen = Buchung.query.filter(
         Buchung.id != buchung_id,
         Buchung.raum_id == buchung.raum_id,
         Buchung.status == 'bestätigt',
+        Buchung.is_active == True,
         Buchung.start_datum < buchung.end_datum,
         Buchung.end_datum > buchung.start_datum
     ).first()
@@ -978,14 +1067,12 @@ def cancel_buchung_user(token):
                                message='Nur bestätigte Buchungen können storniert werden.',
                                typ='warning')
 
-    # Speichere Buchungsdaten für E-Mail
-    benutzer_name = buchung.benutzer_name
-
     # Sende Benachrichtigung an Admin
     send_cancellation_notification(buchung)
 
-    # Lösche die Buchung
-    db.session.delete(buchung)
+    # Markiere Buchung als gelöscht (statt sie zu löschen)
+    buchung.is_active = False
+    buchung.geloescht_am = datetime.utcnow()
     db.session.commit()
 
     return render_template('message.html',

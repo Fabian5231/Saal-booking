@@ -152,6 +152,9 @@ function initEventListeners() {
     document.getElementById('pin-close').addEventListener('click', closePinModal);
     document.getElementById('cancel-pin').addEventListener('click', closePinModal);
     document.getElementById('pin-form').addEventListener('submit', verifyPin);
+
+    // E-Mail-Einstellungen
+    document.getElementById('save-saal-email-btn').addEventListener('click', saveSaalEmail);
 }
 
 function renderCalendar() {
@@ -625,6 +628,7 @@ function updateAdminStatus() {
         container.classList.add('admin-mode');
 
         // Lade Admin-Daten
+        loadAdminSettings();
         loadAdminLogs();
         loadAdminStats();
     } else {
@@ -633,6 +637,72 @@ function updateAdminStatus() {
         sidebar.classList.remove('show');
         container.classList.remove('admin-mode');
     }
+}
+
+function loadAdminSettings() {
+    fetch('/api/admin/settings')
+        .then(response => {
+            if (response.status === 401) {
+                // Session abgelaufen
+                isAdminMode = false;
+                updateAdminStatus();
+                renderBuchungsListe();
+                return Promise.reject('Session abgelaufen');
+            }
+            return response.json();
+        })
+        .then(settings => {
+            document.getElementById('admin-email-display').value = settings.admin_email;
+            document.getElementById('saal-email-input').value = settings.saal_verantwortlicher_email || '';
+        })
+        .catch(error => {
+            if (error !== 'Session abgelaufen') {
+                console.error('Fehler beim Laden der Einstellungen:', error);
+            }
+        });
+}
+
+async function saveSaalEmail() {
+    const emailInput = document.getElementById('saal-email-input');
+    const email = emailInput.value.trim();
+
+    // Validiere E-Mail-Format
+    if (email && !email.includes('@')) {
+        await customAlert('Bitte geben Sie eine gültige E-Mail-Adresse ein.', 'Ungültige E-Mail', 'error');
+        return;
+    }
+
+    fetch('/api/admin/settings/saal-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: email })
+    })
+    .then(response => {
+        if (response.status === 401) {
+            // Session abgelaufen
+            customAlert('Ihre Admin-Session ist abgelaufen. Bitte melden Sie sich erneut an.', 'Session abgelaufen', 'warning');
+            isAdminMode = false;
+            updateAdminStatus();
+            renderBuchungsListe();
+            return Promise.reject('Session abgelaufen');
+        }
+        return response.json();
+    })
+    .then(async data => {
+        if (data.error) {
+            await customAlert('Fehler: ' + data.error, 'Fehler', 'error');
+        } else {
+            await customAlert('Die Saal-Verantwortlichen E-Mail wurde erfolgreich aktualisiert!', 'Erfolg', 'success');
+        }
+    })
+    .catch(async error => {
+        if (error !== 'Session abgelaufen') {
+            console.error('Fehler:', error);
+            await customAlert('Es gab einen Fehler beim Speichern der E-Mail.', 'Fehler', 'error');
+        }
+    });
 }
 
 function loadAdminLogs() {
@@ -670,13 +740,15 @@ function loadAdminLogs() {
                     minute: '2-digit'
                 });
 
+                const statusText = log.status_text || log.status;
+
                 logEntry.innerHTML = `
                     <div class="log-time">${timeStr}</div>
                     <div class="log-message"><strong>${log.message}</strong></div>
                     <div class="log-details">
                         ${log.details}<br>
                         <small>Email: ${log.email}</small><br>
-                        <small>Status: <strong>${log.status}</strong></small>
+                        <small>Status: <strong>${statusText}</strong></small>
                     </div>
                 `;
 
@@ -708,6 +780,7 @@ function loadAdminStats() {
             document.getElementById('stat-pending').textContent = stats.pending;
             document.getElementById('stat-confirmed').textContent = stats.confirmed;
             document.getElementById('stat-rejected').textContent = stats.rejected;
+            document.getElementById('stat-deleted').textContent = stats.deleted;
         })
         .catch(error => {
             if (error !== 'Session abgelaufen') {
@@ -724,13 +797,15 @@ function getLogClass(status) {
             return 'error';
         case 'ausstehend':
             return 'warning';
+        case 'gelöscht':
+            return 'deleted';
         default:
             return '';
     }
 }
 
 async function loescheBuchung(buchungId) {
-    const result = await customConfirm('Möchten Sie diese Buchung wirklich unwiderruflich löschen?', 'Buchung löschen');
+    const result = await customConfirm('Möchten Sie diese Buchung wirklich löschen? Sie wird als inaktiv markiert und bleibt im Verlauf sichtbar.', 'Buchung löschen');
     if (!result.confirmed) return;
 
     fetch(`/api/buchung/${buchungId}/loeschen`, {
