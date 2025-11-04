@@ -114,7 +114,8 @@ document.addEventListener('DOMContentLoaded', function() {
     raumName = document.getElementById('raum-name').value;
 
     initEventListeners();
-    loadBuchungen();
+    renderCalendar(); // Rendere den Kalender sofort (ohne Buchungen)
+    loadBuchungen(); // Lade Buchungen und aktualisiere Kalender
 });
 
 function initEventListeners() {
