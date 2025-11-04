@@ -1,304 +1,330 @@
 # Server Deployment Guide
 
-## Antwort auf deine Frage:
-**NEIN, nicht löschen!** Du kannst einfach `git pull` machen. Hier ist die Schritt-für-Schritt Anleitung:
+## 🚀 Super-Einfaches Docker Deployment
+
+**Alles läuft in Docker - Flask App, PostgreSQL, Redis, und pgAdmin!**
+
+Mit diesem Setup musst du auf dem Server nur noch:
+```bash
+git pull && docker-compose up -d
+```
+
+Das war's! Keine Python-Installation, keine manuellen Dependencies, kein Stress.
 
 ---
 
-## 🚀 Deployment auf bestehendem Server
+## 📋 Erstmaliges Setup auf dem Server
 
-### Option 1: Mit Docker (EMPFOHLEN)
-
-#### Schritt 1: Git Pull
 ```bash
-cd /pfad/zum/projekt
-git pull origin main
-```
-
-#### Schritt 2: Docker & Docker Compose installieren (falls nicht vorhanden)
-```bash
-# Docker installieren (Ubuntu/Debian)
+# Ubuntu/Debian
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 
 # Docker Compose installieren
 sudo apt-get update
 sudo apt-get install docker-compose-plugin
+
+# Optional: Docker ohne sudo verwenden
+sudo usermod -aG docker $USER
+# Dann ausloggen und wieder einloggen!
 ```
 
-#### Schritt 3: .env auf Server aktualisieren
+### Schritt 2: Repository klonen
 ```bash
-# Bearbeite .env
+cd /var/www  # oder dein bevorzugter Pfad
+git clone https://github.com/DEIN-REPO/raumbuchung.git
+cd raumbuchung
+```
+
+### Schritt 3: .env Datei erstellen
+```bash
+# Kopiere die Beispiel-Datei
+cp .env.example .env
+
+# Bearbeite die .env Datei
 nano .env
-
-# Ändere diese Zeile:
-# ALT: DATABASE_URI=sqlite:///buchungen.db
-# NEU: DATABASE_URI=postgresql://admin:SICHERES-PASSWORT@localhost:5432/buchungen
-
-# WICHTIG: Setze ein SICHERES Passwort!
 ```
 
-#### Schritt 4: PostgreSQL mit Docker starten
+**WICHTIG:** Ändere mindestens diese Werte:
 ```bash
-# Starte PostgreSQL, Redis, pgAdmin
+# Generiere einen sicheren Key:
+# python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY=HIER-EINEN-NEUEN-SICHEREN-KEY-EINFÜGEN
+
+# Setze ein sicheres Datenbank-Passwort
+DB_PASSWORD=HIER-EIN-SICHERES-PASSWORT
+```
+
+Die restlichen Werte (E-Mail, Admin) sind bereits korrekt vorkonfiguriert.
+
+### Schritt 4: Starte alle Services
+```bash
+# Baue und starte alle Container
 docker-compose up -d
 
-# Prüfe ob Container laufen
+# Prüfe ob alles läuft
 docker-compose ps
 ```
 
-#### Schritt 5: Python Dependencies installieren
+Du solltest 4 Container sehen:
+- ✅ `raumbuchung-app` (Flask Anwendung)
+- ✅ `raumbuchung-db` (PostgreSQL)
+- ✅ `raumbuchung-redis` (Redis)
+- ✅ `raumbuchung-pgadmin` (pgAdmin)
+
+### Schritt 5: Datenbank initialisieren
 ```bash
-# Aktiviere Virtual Environment (falls vorhanden)
-source venv/bin/activate
-
-# Oder erstelle neues venv
-python3 -m venv venv
-source venv/bin/activate
-
-# Installiere neue Dependencies
-pip install -r requirements.txt
+# Erstelle die Datenbank-Tabellen
+docker-compose exec app python -c "from app import app, db; app.app_context().push(); db.create_all()"
 ```
 
-#### Schritt 6: Daten migrieren
+### Schritt 6: Teste die Anwendung
 ```bash
-# Migriere Daten von SQLite zu PostgreSQL
-python migrate_to_postgres.py
+# Health Check
+curl http://localhost:8000/health
 
-# Verifiziere Migration
-python migrate_to_postgres.py --verify
+# Öffne im Browser
+http://deine-server-ip:8000
 ```
 
-#### Schritt 7: Anwendung neu starten
-```bash
-# Wenn mit systemd:
-sudo systemctl restart raumbuchung
-
-# Wenn mit Gunicorn manuell:
-pkill gunicorn
-gunicorn --bind 0.0.0.0:8000 --workers 4 app:app &
-
-# Wenn mit screen/tmux:
-# Alte Session beenden und neu starten
-```
-
-#### Schritt 8: Testen
-```bash
-# Prüfe ob Anwendung läuft
-curl http://localhost:8000
-
-# Oder öffne im Browser
-# http://deine-server-ip:8000
-```
+**Das war's!** Die Anwendung läuft jetzt vollständig in Docker.
 
 ---
 
-### Option 2: Ohne Docker (PostgreSQL direkt installiert)
+## 🔄 Updates deployen (das wird dein Standard-Workflow!)
 
-#### Schritt 1: Git Pull
+Wenn du Code-Änderungen deployest:
+
 ```bash
-cd /pfad/zum/projekt
+# 1. Hole neuesten Code
+cd /var/www/raumbuchung
 git pull origin main
+
+# 2. Baue und starte neu
+docker-compose up -d --build
+
+# 3. Fertig!
 ```
 
-#### Schritt 2: PostgreSQL installieren (falls nicht vorhanden)
+Das war's! Docker kümmert sich um alles:
+- Python Dependencies werden automatisch installiert
+- Datenbank bleibt erhalten (Persistent Volume)
+- Alte Container werden sauber ersetzt
+
+---
+
+## 🔧 Nützliche Docker-Befehle
+
 ```bash
-# Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install postgresql postgresql-contrib
+# Status aller Container anzeigen
+docker-compose ps
 
-# CentOS/RHEL
-sudo yum install postgresql-server postgresql-contrib
-sudo postgresql-setup initdb
-sudo systemctl start postgresql
-```
+# Logs anschauen (alle Services)
+docker-compose logs -f
 
-#### Schritt 3: PostgreSQL Datenbank erstellen
-```bash
-# Als postgres User
-sudo -u postgres psql
+# Logs nur von der App
+docker-compose logs -f app
 
-# In psql:
-CREATE DATABASE buchungen;
-CREATE USER admin WITH PASSWORD 'dein-sicheres-passwort';
-GRANT ALL PRIVILEGES ON DATABASE buchungen TO admin;
-\q
-```
+# Container neu starten
+docker-compose restart app
 
-#### Schritt 4: .env aktualisieren
-```bash
-nano .env
+# Alles stoppen
+docker-compose down
 
-# Ändere:
-DATABASE_URI=postgresql://admin:dein-sicheres-passwort@localhost:5432/buchungen
-```
+# Alles stoppen UND Daten löschen (VORSICHT!)
+docker-compose down -v
 
-#### Schritt 5: Dependencies installieren
-```bash
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-#### Schritt 6: Daten migrieren
-```bash
-python migrate_to_postgres.py
-python migrate_to_postgres.py --verify
-```
-
-#### Schritt 7: Anwendung neu starten
-```bash
-sudo systemctl restart raumbuchung
-# oder
-pkill gunicorn && gunicorn --bind 0.0.0.0:8000 --workers 4 app:app &
+# In Container einsteigen (für Debugging)
+docker-compose exec app bash
+docker-compose exec db psql -U admin -d buchungen
 ```
 
 ---
 
-## ⚙️ Konfiguration für Produktion
+## 📊 pgAdmin verwenden
 
-### Wichtige .env Änderungen für Server:
+pgAdmin ist eine Web-UI für PostgreSQL:
 
 ```bash
-# .env (Produktion)
-SECRET_KEY=GENERIERE-EINEN-NEUEN-SICHEREN-KEY  # python -c "import secrets; print(secrets.token_hex(32))"
-FLASK_ENV=production
+# Öffne im Browser
+http://deine-server-ip:5050
 
-# PostgreSQL
-DATABASE_URI=postgresql://admin:SICHERES-PASSWORT@localhost:5432/buchungen
-
-# E-Mail (deine bestehenden Werte behalten)
-MAIL_SERVER=mailout.innos.cloud
-MAIL_PORT=25
-MAIL_USERNAME=besh
-MAIL_PASSWORD=Besh149098#2020
-MAIL_DEFAULT_SENDER_NAME=Reservierung Saal Raiffeinstraße
-MAIL_DEFAULT_SENDER_EMAIL=Reservierung-Saal@besh.de
-
-# Admin
-ADMIN_EMAIL=fabian.klenk@besh.de
-ADMIN_PIN=2502  # TODO: Durch längeres Passwort ersetzen!
+# Login:
+Email: admin@example.com
+Password: admin  (oder dein PGADMIN_PASSWORD aus .env)
 ```
 
-### Gunicorn Konfiguration (wenn noch nicht vorhanden)
+**Server verbinden:**
+1. Add New Server
+2. General > Name: `Raumbuchung`
+3. Connection:
+   - Host: `db` (nicht localhost!)
+   - Port: `5432`
+   - Database: `buchungen`
+   - Username: `admin`
+   - Password: dein `DB_PASSWORD` aus .env
 
-Erstelle `gunicorn.conf.py`:
-```python
-# gunicorn.conf.py
-bind = "0.0.0.0:8000"
-workers = 4
-worker_class = "sync"
-worker_connections = 1000
-timeout = 30
-keepalive = 2
+---
 
-# Logging
-accesslog = "logs/access.log"
-errorlog = "logs/error.log"
-loglevel = "info"
-```
+## 🎯 Nginx Reverse Proxy (Optional aber empfohlen)
 
-Starten:
+Für Produktion solltest du Nginx vor die App schalten:
+
 ```bash
-gunicorn --config gunicorn.conf.py app:app
+sudo apt-get install nginx
 ```
 
-### Systemd Service (wenn noch nicht vorhanden)
+Erstelle `/etc/nginx/sites-available/raumbuchung`:
+```nginx
+server {
+    listen 80;
+    server_name deine-domain.de;
 
-Erstelle `/etc/systemd/system/raumbuchung.service`:
-```ini
-[Unit]
-Description=Raumbuchungssystem
-After=network.target postgresql.service
-
-[Service]
-Type=notify
-User=www-data
-WorkingDirectory=/pfad/zum/projekt
-Environment="PATH=/pfad/zum/projekt/venv/bin"
-ExecStart=/pfad/zum/projekt/venv/bin/gunicorn --config gunicorn.conf.py app:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
 Aktivieren:
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable raumbuchung
-sudo systemctl start raumbuchung
+sudo ln -s /etc/nginx/sites-available/raumbuchung /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### HTTPS mit Let's Encrypt
+```bash
+sudo apt-get install certbot python3-certbot-nginx
+sudo certbot --nginx -d deine-domain.de
 ```
 
 ---
 
 ## 🔍 Troubleshooting
 
-### Problem: "ImportError: No module named psycopg2"
+### Problem: Container starten nicht
 ```bash
-pip install psycopg2-binary
-```
-
-### Problem: "Can't connect to PostgreSQL"
-```bash
-# Prüfe ob PostgreSQL läuft
-sudo systemctl status postgresql
-# oder (Docker):
+# Prüfe Status
 docker-compose ps
 
-# Prüfe ob Port offen ist
-netstat -an | grep 5432
+# Zeige Logs
+docker-compose logs
 
-# Teste Verbindung
-psql -U admin -d buchungen -h localhost
+# Baue neu ohne Cache
+docker-compose build --no-cache
+docker-compose up -d
 ```
 
-### Problem: "Migration failed"
+### Problem: App kann nicht auf Datenbank zugreifen
 ```bash
-# Prüfe ob alte SQLite-DB existiert
-ls -la instance/buchungen.db
+# Prüfe ob DB-Container läuft
+docker-compose ps db
 
-# Prüfe PostgreSQL-Verbindung
-python -c "from app import app, db; app.app_context().push(); print(db.engine.url)"
+# Zeige DB-Logs
+docker-compose logs db
 
-# Erstelle Tabellen manuell
-python -c "from app import app, db; app.app_context().push(); db.create_all()"
+# Teste DB-Verbindung
+docker-compose exec db psql -U admin -d buchungen -c "SELECT 1;"
+
+# Prüfe Netzwerk
+docker network ls
+docker network inspect raumbuchung_network
 ```
 
-### Problem: "Anwendung startet nicht"
+### Problem: Port 8000 ist bereits belegt
 ```bash
-# Prüfe Logs
-tail -f logs/error.log
+# Finde Prozess
+netstat -tulpn | grep 8000
+# oder
+lsof -i :8000
 
-# Oder direkt starten um Fehler zu sehen
-python app.py
+# Ändere Port in docker-compose.yml
+# ports:
+#   - "8080:8000"  # Host:Container
+```
+
+### Problem: .env Variablen werden nicht geladen
+```bash
+# Prüfe ob .env existiert
+ls -la .env
+
+# Zeige aktuelle Umgebungsvariablen im Container
+docker-compose exec app env | grep DB_PASSWORD
+
+# Container mit neuer .env neu starten
+docker-compose down
+docker-compose up -d
+```
+
+### Problem: Datenbank-Tabellen existieren nicht
+```bash
+# Erstelle Tabellen
+docker-compose exec app python -c "from app import app, db; app.app_context().push(); db.create_all()"
+
+# Prüfe ob Tabellen existiert
+docker-compose exec db psql -U admin -d buchungen -c "\dt"
+```
+
+### Problem: "Build failed" beim ersten Start
+```bash
+# Prüfe ob Dockerfile existiert
+ls -la Dockerfile
+
+# Prüfe Docker-Logs
+docker-compose logs app
+
+# Häufige Ursachen:
+# - requirements.txt fehlt
+# - Syntax-Fehler in Dockerfile
+# - Netzwerk-Probleme beim Download
 ```
 
 ---
 
-## 📊 Backup-Strategie für Server
+## 💾 Backup-Strategie
+
+### Manuelles Backup erstellen
+
+```bash
+# Backup erstellen
+docker-compose exec db pg_dump -U admin buchungen > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Backup wiederherstellen
+docker-compose exec -T db psql -U admin -d buchungen < backup_20250101_120000.sql
+```
 
 ### Automatisches tägliches Backup einrichten
 
 ```bash
 # Erstelle Backup-Skript
-cat > /usr/local/bin/backup-raumbuchung.sh <<'EOF'
+sudo cat > /usr/local/bin/backup-raumbuchung.sh <<'EOF'
 #!/bin/bash
 BACKUP_DIR="/var/backups/raumbuchung"
 DATE=$(date +%Y%m%d_%H%M%S)
+PROJECT_DIR="/var/www/raumbuchung"
 
 mkdir -p $BACKUP_DIR
 
 # PostgreSQL Backup
-docker exec raumbuchung-db pg_dump -U admin buchungen > $BACKUP_DIR/buchungen_$DATE.sql
+cd $PROJECT_DIR
+docker-compose exec -T db pg_dump -U admin buchungen > $BACKUP_DIR/buchungen_$DATE.sql
+
+# Komprimieren
+gzip $BACKUP_DIR/buchungen_$DATE.sql
 
 # Alte Backups löschen (älter als 30 Tage)
-find $BACKUP_DIR -name "buchungen_*.sql" -mtime +30 -delete
+find $BACKUP_DIR -name "buchungen_*.sql.gz" -mtime +30 -delete
 
-echo "Backup created: $BACKUP_DIR/buchungen_$DATE.sql"
+echo "Backup created: $BACKUP_DIR/buchungen_$DATE.sql.gz"
 EOF
 
 # Ausführbar machen
-chmod +x /usr/local/bin/backup-raumbuchung.sh
+sudo chmod +x /usr/local/bin/backup-raumbuchung.sh
 
 # Cron-Job erstellen (täglich um 2 Uhr)
 sudo crontab -e
@@ -308,82 +334,123 @@ sudo crontab -e
 
 ---
 
-## 🔐 Sicherheits-Checkliste für Server
+## 🔐 Sicherheits-Checkliste
 
 Vor Go-Live prüfen:
 
-- [ ] .env hat sichere Passwörter (nicht die Beispiel-Werte!)
-- [ ] SECRET_KEY ist einzigartig und stark
-- [ ] FLASK_ENV=production (nicht development!)
-- [ ] PostgreSQL läuft nur auf localhost (nicht öffentlich erreichbar)
-- [ ] Firewall ist konfiguriert (nur Port 80/443 offen)
-- [ ] HTTPS ist aktiviert (z.B. mit Let's Encrypt)
-- [ ] Backup-System läuft
-- [ ] Logs werden rotiert (logrotate)
-- [ ] Nginx als Reverse Proxy konfiguriert
+- [ ] **.env hat sichere Passwörter** (nicht die Beispiel-Werte!)
+  ```bash
+  # Generiere neuen SECRET_KEY
+  python -c "import secrets; print(secrets.token_hex(32))"
+  ```
+
+- [ ] **FLASK_ENV=production** (nicht development!)
+
+- [ ] **PostgreSQL Port ist NICHT öffentlich** (5433 nur für localhost)
+  ```bash
+  # In docker-compose.yml sollte stehen:
+  # ports:
+  #   - "127.0.0.1:5433:5432"  # Nur localhost!
+  ```
+
+- [ ] **Firewall konfiguriert**
+  ```bash
+  sudo ufw allow 80/tcp
+  sudo ufw allow 443/tcp
+  sudo ufw allow 22/tcp  # SSH
+  sudo ufw enable
+  ```
+
+- [ ] **HTTPS aktiviert** (Let's Encrypt)
+- [ ] **Backup-System läuft**
+- [ ] **Nginx Reverse Proxy** konfiguriert
+- [ ] **Container haben restart policy** (already done: `restart: unless-stopped`)
 
 ---
 
-## 🔄 Zukünftige Updates deployen
+## 🎉 Vorteile des Docker-Setups
 
-Für zukünftige Updates ist es ganz einfach:
+**Auf deinem Desktop (Docker Desktop):**
+- ✅ Gleiche Umgebung wie auf dem Server
+- ✅ Keine Konflikte mit anderen Python-Projekten
+- ✅ Einfaches Testen
 
+**Auf dem Server:**
+- ✅ `git pull && docker-compose up -d` - Fertig!
+- ✅ Keine manuelle Python/pip-Installation
+- ✅ Isolierte Umgebung
+- ✅ Einfaches Rollback (alte Images bleiben)
+- ✅ Skalierbar (einfach mehr Worker-Container hinzufügen)
+
+**Unterschiede zwischen Desktop und Server:**
+- **KEINE!** Genau dasselbe Setup, keine Überraschungen mehr!
+
+---
+
+## 📝 Quick Reference
+
+### Tägliche Befehle
 ```bash
-# 1. Code aktualisieren
-cd /pfad/zum/projekt
-git pull origin main
+# Logs anschauen
+docker-compose logs -f app
 
-# 2. Dependencies aktualisieren (falls requirements.txt geändert)
-pip install -r requirements.txt
+# App neu starten
+docker-compose restart app
 
-# 3. Datenbank-Migrationen (falls nötig)
-# Siehe migrate_db.py oder zukünftige Migrations-Skripte
-
-# 4. Anwendung neu starten
-sudo systemctl restart raumbuchung
+# Status prüfen
+docker-compose ps
 ```
 
-**Das wars!** Kein Löschen, kein Neuaufsetzen nötig.
+### Update deployen
+```bash
+git pull origin main && docker-compose up -d --build
+```
+
+### Backup erstellen
+```bash
+docker-compose exec db pg_dump -U admin buchungen > backup.sql
+```
+
+### Backup wiederherstellen
+```bash
+docker-compose exec -T db psql -U admin -d buchungen < backup.sql
+```
 
 ---
 
-## 📝 Zusammenfassung: Was du tun musst
+## 🆘 Support & Debugging
 
-1. ✅ `git pull origin main` auf dem Server
-2. ✅ PostgreSQL einrichten (Docker ODER direkt)
-3. ✅ `.env` aktualisieren (DATABASE_URI ändern)
-4. ✅ `pip install -r requirements.txt`
-5. ✅ `python migrate_to_postgres.py`
-6. ✅ Anwendung neu starten
+**Container Logs:**
+```bash
+# Alle Logs
+docker-compose logs -f
 
-**Zeit:** 10-20 Minuten
-**Downtime:** ~2 Minuten (während Neustart)
+# Nur App
+docker-compose logs -f app
 
----
+# Nur Datenbank
+docker-compose logs -f db
 
-## 💡 Wichtige Hinweise
+# Letzte 50 Zeilen
+docker-compose logs --tail=50 app
+```
 
-1. **Backup vorher!** Erstelle ein Backup der alten SQLite-DB:
-   ```bash
-   cp instance/buchungen.db instance/buchungen.db.backup_$(date +%Y%m%d)
-   ```
+**In Container einsteigen:**
+```bash
+# Flask-App
+docker-compose exec app bash
+# Dann: python, pip, etc.
 
-2. **Teste nach Migration**: Öffne die Anwendung und teste:
-   - Kalender lädt
-   - Bestehende Buchungen sind sichtbar
-   - Neue Buchung erstellen funktioniert
-   - Admin-Panel funktioniert
+# Datenbank
+docker-compose exec db psql -U admin -d buchungen
+# Dann: SQL-Befehle
+```
 
-3. **Alte SQLite-DB behalten**: Lösche die alte SQLite-DB erst nach einigen Tagen erfolgreichen Betriebs mit PostgreSQL.
+**Performance prüfen:**
+```bash
+# Ressourcen-Verbrauch
+docker stats
 
----
-
-## 🆘 Support
-
-Falls Probleme auftreten:
-
-1. Prüfe Logs: `tail -f logs/error.log`
-2. Prüfe Container: `docker-compose ps` und `docker-compose logs -f`
-3. Teste Verbindung: `psql -U admin -d buchungen -h localhost`
-
-Bei Fragen: GitHub Issue erstellen oder Admin kontaktieren.
+# Container-Details
+docker inspect raumbuchung-app
+```

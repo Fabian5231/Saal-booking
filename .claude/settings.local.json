@@ -13,7 +13,12 @@
       "Bash(docker-compose down:*)",
       "Bash(docker-compose ps:*)",
       "Bash(ren:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(nul)",
+      "Bash(git check-ignore:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

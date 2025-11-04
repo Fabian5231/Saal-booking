@@ -703,6 +703,25 @@ def get_notification_emails():
     return emails
 
 # Routen
+@app.route('/health')
+def health():
+    """Health Check Endpoint für Docker"""
+    try:
+        # Prüfe Datenbank-Verbindung
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 503
+
 @app.route('/')
 def index():
     raeume = Raum.query.all()
