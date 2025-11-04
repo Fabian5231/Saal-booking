@@ -1111,6 +1111,8 @@ def init_db():
             db.session.commit()
             print("Raum 'Saal Raifeinstraße' wurde erstellt")
 
+# Initialisiere DB beim Import (wichtig für Gunicorn/Production)
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True)
