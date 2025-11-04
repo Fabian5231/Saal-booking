@@ -71,7 +71,7 @@ def reset_database():
         # Erstelle Standard-Raum
         from app import Raum
         if Raum.query.count() == 0:
-            raum = Raum(name='Saal Raifeinstrasse', beschreibung='')
+            raum = Raum(name='Saal Raiffeisenstraße 12', beschreibung='')
             db.session.add(raum)
             db.session.commit()
             print("[OK] Standard-Raum erstellt")

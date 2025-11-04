@@ -1,4 +1,4 @@
-# Raumbuchungssystem - Saal Raifeinstraße
+# Raumbuchungssystem - Saal Raiffeisenstraße 12
 
 Ein webbasiertes Buchungssystem für Raumreservierungen mit Admin-Panel und E-Mail-Benachrichtigungen.
 

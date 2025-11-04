@@ -177,7 +177,7 @@ def send_booking_request_email(buchung):
             <div class="container">
                 <div class="content">
                     <p>Guten Tag,</p>
-                    <p>Es ist eine neue Buchungsanfrage für den <strong>Saal Raifeinstraße</strong> eingegangen.</p>
+                    <p>Es ist eine neue Buchungsanfrage für den <strong>Saal Raiffeisenstraße 12</strong> eingegangen.</p>
 
                     <div class="info-box">
                         <h3>Buchungsdetails:</h3>
@@ -197,7 +197,7 @@ def send_booking_request_email(buchung):
                     </p>
                 </div>
                 <div class="footer">
-                    <p>Raumbuchungssystem - Saal Raifeinstraße</p>
+                    <p>Raumbuchungssystem - Saal Raiffeisenstraße 12</p>
                 </div>
             </div>
         </body>
@@ -301,7 +301,7 @@ def send_user_request_confirmation(buchung):
         '''
 
         msg = Message(
-            subject='Ihre Buchungsanfrage für den Saal Raifeinstraße',
+            subject='Ihre Buchungsanfrage für den Saal Raiffeisenstraße 12',
             recipients=[buchung.benutzer_email],
             html=html_body
         )
@@ -427,7 +427,7 @@ def send_user_confirmation(buchung):
         '''
 
         msg = Message(
-            subject='Buchung bestätigt - Saal Raifeinstraße',
+            subject='Buchung bestätigt - Saal Raiffeisenstraße 12',
             recipients=[buchung.benutzer_email],
             html=html_body
         )
@@ -546,7 +546,7 @@ def send_user_rejection(buchung, rejection_message=None):
         '''
 
         msg = Message(
-            subject='Buchung abgelehnt - Saal Raifeinstraße',
+            subject='Buchung abgelehnt - Saal Raiffeisenstraße 12',
             recipients=[buchung.benutzer_email],
             html=html_body
         )
@@ -628,7 +628,7 @@ def send_cancellation_notification(buchung):
                     <p><strong>Die Buchung wurde automatisch gelöscht.</strong></p>
                 </div>
                 <div class="footer">
-                    <p>Raumbuchungssystem - Saal Raifeinstraße</p>
+                    <p>Raumbuchungssystem - Saal Raiffeisenstraße 12</p>
                 </div>
             </div>
         </body>
@@ -1124,10 +1124,10 @@ def init_db():
 
         # Erstelle Raum, wenn noch keiner vorhanden ist
         if Raum.query.count() == 0:
-            raum = Raum(name='Saal Raifeinstraße', beschreibung='')
+            raum = Raum(name='Saal Raiffeisenstraße 12', beschreibung='')
             db.session.add(raum)
             db.session.commit()
-            print("Raum 'Saal Raifeinstraße' wurde erstellt")
+            print("Raum 'Saal Raiffeisenstraße 12' wurde erstellt")
 
 # Initialisiere DB beim Import (wichtig für Gunicorn/Production)
 init_db()
