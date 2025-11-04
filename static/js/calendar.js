@@ -411,6 +411,11 @@ function renderBuchungsListe() {
             buttons.push(`<button class="btn btn-danger" onclick="lehneAb(${buchung.id})">Ablehnen</button>`);
         }
 
+        // Stornieren-Button im Admin-Modus für bestätigte Buchungen
+        if (isAdminMode && buchung.status === 'bestätigt') {
+            buttons.push(`<button class="btn btn-warning" onclick="storniereBuchung(${buchung.id})">Stornieren</button>`);
+        }
+
         // Löschen-Button im Admin-Modus für alle Buchungen
         if (isAdminMode) {
             buttons.push(`<button class="btn btn-delete" onclick="loescheBuchung(${buchung.id})">Löschen</button>`);
@@ -837,6 +842,46 @@ async function loescheBuchung(buchungId) {
         if (error !== 'Session abgelaufen') {
             console.error('Fehler:', error);
             await customAlert('Es gab einen Fehler beim Löschen der Buchung.', 'Fehler', 'error');
+        }
+    });
+}
+
+async function storniereBuchung(buchungId) {
+    const result = await customConfirm('Möchten Sie diese Buchung wirklich stornieren? Der Administrator wird per E-Mail benachrichtigt.', 'Buchung stornieren');
+    if (!result.confirmed) return;
+
+    fetch(`/api/buchung/${buchungId}/stornieren`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (response.status === 401) {
+            // Session abgelaufen
+            customAlert('Ihre Admin-Session ist abgelaufen. Bitte melden Sie sich erneut an.', 'Session abgelaufen', 'warning');
+            isAdminMode = false;
+            updateAdminStatus();
+            renderBuchungsListe();
+            return Promise.reject('Session abgelaufen');
+        }
+        return response.json();
+    })
+    .then(async data => {
+        if (data.error) {
+            await customAlert('Fehler: ' + data.error, 'Fehler', 'error');
+        } else {
+            await customAlert('Buchung wurde erfolgreich storniert. Eine Benachrichtigung wurde an den Administrator gesendet.', 'Erfolg', 'success');
+            loadBuchungen();
+
+            // Aktualisiere Admin-Panel wenn im Admin-Modus
+            if (isAdminMode) {
+                loadAdminLogs();
+                loadAdminStats();
+            }
+        }
+    })
+    .catch(async error => {
+        if (error !== 'Session abgelaufen') {
+            console.error('Fehler:', error);
+            await customAlert('Es gab einen Fehler beim Stornieren der Buchung.', 'Fehler', 'error');
         }
     });
 }

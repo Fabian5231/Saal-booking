@@ -798,6 +798,18 @@ header h1 {
     border-color: #ef5350;
 }
 
+.btn-warning {
+    background: white;
+    color: #ffa726;
+    border-color: #ffa726;
+}
+
+.btn-warning:hover {
+    background: #ffa726;
+    color: white;
+    border-color: #ffa726;
+}
+
 /* Admin-Modus - Zahnrad oben rechts */
 .admin-gear-btn {
     position: fixed;

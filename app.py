@@ -851,6 +851,24 @@ def loeschen_buchung(buchung_id):
 
     return jsonify({'message': 'Buchung wurde gelöscht'})
 
+@app.route('/api/buchung/<int:buchung_id>/stornieren', methods=['POST'])
+@admin_required
+def stornieren_buchung(buchung_id):
+    buchung = Buchung.query.get_or_404(buchung_id)
+
+    if buchung.status != 'bestätigt':
+        return jsonify({'error': 'Nur bestätigte Buchungen können storniert werden'}), 400
+
+    # Sende Benachrichtigung an Admin
+    send_cancellation_notification(buchung)
+
+    # Markiere Buchung als gelöscht
+    buchung.is_active = False
+    buchung.geloescht_am = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'message': 'Buchung wurde storniert', 'status': 'storniert'})
+
 @app.route('/api/raeume')
 def get_raeume():
     raeume = Raum.query.all()
